@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>風船割り占い - Color Pop Oracle</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { height: 100%; margin: 0; }
+    body{
+      background:#070b14;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+      overscroll-behavior: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+    }
+    #wrap{
+      position: fixed; inset: 0;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: env(safe-area-inset-top) 10px env(safe-area-inset-bottom) 10px;
+      gap: 8px;
+    }
+    .hud{
+      display:flex; justify-content:space-between; align-items:center;
+      gap:8px; flex-wrap: wrap;
+      padding: 8px 6px 0;
+      color:#d7e1ff;
+    }
+    .left{ display:flex; gap:10px; flex-wrap: wrap; }
+    .pill{
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      backdrop-filter: blur(6px);
+    }
+    .btns{ display:flex; gap:8px; flex-wrap: wrap; }
+    .btn{
+      user-select:none; cursor:pointer;
+      background: rgba(120,190,255,.18);
+      border: 1px solid rgba(120,190,255,.35);
+      color:#eaf3ff;
+      padding: 9px 12px;
+      border-radius: 12px;
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+    .btn:active{ transform: translateY(1px); }
+
+    canvas{
+      width: 100%;
+      height: 100%;
+      display:block;
+      border-radius: 18px;
+      background:
+        radial-gradient(1200px 700px at 50% 120%, rgba(110,170,255,.16), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border: 1px solid rgba(255,255,255,.10);
+    }
+    .foot{
+      color: rgba(215,225,255,.75);
+      font-size: 12px;
+      padding: 0 6px 10px;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    /* 結果モーダル */
+    .modal{
+      position: fixed; inset: 0;
+      display: none;
+      place-items: center;
+      padding: 18px;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(8px);
+      z-index: 10;
+    }
+    .modal.show{ display: grid; }
+    .card{
+      width: min(560px, 100%);
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(12,16,28,.86);
+      padding: 16px 14px 14px;
+      color: rgba(235,242,255,.95);
+      box-shadow: 0 20px 80px rgba(0,0,0,.55);
+    }
+    .headline{
+      display:flex; justify-content:space-between; align-items: baseline; gap: 10px; flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .title{
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: .02em;
+    }
+    .badge{
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      white-space: nowrap;
+    }
+    .section{
+      margin-top: 10px;
+      border-top: 1px solid rgba(255,255,255,.10);
+      padding-top: 10px;
+    }
+    .k{ opacity: .75; font-size: 12px; }
+    .v{ font-size: 14px; line-height: 1.7; margin-top: 4px; }
+    .quote{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      font-weight: 800;
+      letter-spacing: .01em;
+    }
+    .row{
+      display:flex; gap: 8px; flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .btn2{
+      user-select:none; cursor:pointer;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 900;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: rgba(235,242,255,.95);
+      flex: 1;
+      min-width: 140px;
+    }
+    .btn2:active{ transform: translateY(1px); }
+    .small{
+      opacity: .7; font-size: 12px; margin-top: 10px; line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <div class="hud">
+      <div class="left">
+        <div class="pill">SCORE: <span id="score">0</span></div>
+        <div class="pill">COMBO: <span id="combo">0</span></div>
+        <div class="pill">POPS: <span id="pops">0</span>/10</div>
+        <div class="pill">TIME: <span id="time">30.0</span>s</div>
+        <div class="pill">BEST: <span id="best">0</span></div>
+      </div>
+      <div class="btns">
+        <button class="btn" id="btnStart">START</button>
+        <button class="btn" id="btnRestart">RESTART</button>
+      </div>
+    </div>
+
+    <canvas id="game"></canvas>
+
+    <div class="foot">
+      遊び方：風船をタップで割るだけ（10個割るか30秒で結果が出る）。<br>
+      PCでもOK：クリック / Spaceで開始・一時停止
+    </div>
+  </div>
+
+  <!-- 結果表示 -->
+  <div class="modal" id="modal">
+    <div class="card">
+      <div class="headline">
+        <div class="title" id="r_title">あなたの今のタイプ</div>
+        <div class="badge" id="r_badge">—</div>
+      </div>
+
+      <div class="section">
+        <div class="k">タイプ</div>
+        <div class="v" id="r_type">—</div>
+      </div>
+
+      <div class="section">
+        <div class="k">いまの状態</div>
+        <div class="v" id="r_state">—</div>
+      </div>
+
+      <div class="section">
+        <div class="k">行動のクセ</div>
+        <div class="v" id="r_style">—</div>
+      </div>
+
+      <div class="quote" id="r_quote">—</div>
+
+      <div class="row">
+        <button class="btn2" id="btnCopy">結果をコピー</button>
+        <button class="btn2" id="btnAgain">もう一回</button>
+      </div>
+
+      <div class="small" id="r_small">
+        ※ 占いは「直感の選択」をもとにした遊びの診断だよ。気楽にどうぞ。
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d", { alpha: true });
+
+  const $score = document.getElementById("score");
+  const $combo = document.getElementById("combo");
+  const $time  = document.getElementById("time");
+  const $best  = document.getElementById("best");
+  const $pops  = document.getElementById("pops");
+  const btnStart = document.getElementById("btnStart");
+  const btnRestart = document.getElementById("btnRestart");
+
+  const modal = document.getElementById("modal");
+  const rTitle = document.getElementById("r_title");
+  const rBadge = document.getElementById("r_badge");
+  const rType  = document.getElementById("r_type");
+  const rState = document.getElementById("r_state");
+  const rStyle = document.getElementById("r_style");
+  const rQuote = document.getElementById("r_quote");
+  const rSmall = document.getElementById("r_small");
+  const btnCopy = document.getElementById("btnCopy");
+  const btnAgain = document.getElementById("btnAgain");
+
+  // --- 画面フィット（高DPI） ---
+  function resize(){
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0); // 座標はCSSピクセル基準
+  }
+  window.addEventListener("resize", resize);
+
+  // ---- ゲーム状態 ----
+  let W = 0, H = 0;
+  let running = false;
+  let finished = false;
+
+  let score = 0;
+  let combo = 0;
+  let timeLeft = 30.0;
+
+  const targetPops = 10;
+
+  // 占い用ログ（割ったデータ）
+  const popLog = []; // {t, colorKey, x,y}
+  let startAt = 0;
+
+  // BEST（端末内）
+  const bestKey = "balloon_oracle_best_v1";
+  let best = Number(localStorage.getItem(bestKey) || 0);
+  $best.textContent = String(best);
+
+  // バブル & パーティクル
+  const bubbles = [];
+  const pops = [];
+
+  // パレット（キー付き）
+  const palette = [
+    { key:"RED",  hex:"#ff4d6d", name:"紅" },
+    { key:"YEL",  hex:"#ffb703", name:"黄" },
+    { key:"BLU",  hex:"#4cc9f0", name:"青" },
+    { key:"GRN",  hex:"#8aff7a", name:"緑" },
+    { key:"PUR",  hex:"#b517ff", name:"紫" },
+    { key:"PNK",  hex:"#f72585", name:"桃" },
+    { key:"CYN",  hex:"#00f5d4", name:"碧" },
+    { key:"LAV",  hex:"#ffd6ff", name:"霞" },
+  ];
+
+  function rand(a,b){ return a + Math.random()*(b-a); }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+  function syncHUD(){
+    $score.textContent = String(score);
+    $combo.textContent = String(combo);
+    $time.textContent = timeLeft.toFixed(1);
+    $pops.textContent = `${popLog.length}/${targetPops}`;
+    $best.textContent = String(best);
+  }
+
+  function reset(){
+    running = false;
+    finished = false;
+    score = 0;
+    combo = 0;
+    timeLeft = 30.0;
+    bubbles.length = 0;
+    pops.length = 0;
+    popLog.length = 0;
+    startAt = 0;
+    hideResult();
+    syncHUD();
+  }
+
+  // ---- バブル生成 ----
+  let spawnTimer = 0;
+  function spawnBubble(){
+    const minDim = Math.min(W,H);
+    const r = rand(minDim*0.055, minDim*0.095);
+    const x = rand(r+10, W-r-10);
+    const y = rand(r+10, H-r-10);
+
+    const life = rand(1.1, 1.7); // 秒
+    const grow = rand(0.85, 1.35);
+    const drift = { x: rand(-20, 20), y: rand(-16, 16) };
+
+    const p = palette[Math.floor(Math.random()*palette.length)];
+
+    bubbles.push({
+      x, y, r,
+      t: 0,
+      life,
+      grow,
+      drift,
+      color: p.hex,
+      colorKey: p.key,
+      ring: rand(0.12, 0.22)
+    });
+  }
+
+  function makePop(x,y,color,baseR){
+    const count = 14 + Math.floor(Math.random()*10);
+    for (let i=0; i<count; i++){
+      const a = Math.random()*Math.PI*2;
+      const sp = rand(120, 340);
+      pops.push({
+        x,y,
+        vx: Math.cos(a)*sp,
+        vy: Math.sin(a)*sp,
+        r: rand(2, 5),
+        life: rand(0.35, 0.7),
+        t: 0,
+        color
+      });
+    }
+    pops.push({ x,y, vx:0, vy:0, r: baseR*0.55, life: 0.45, t:0, color, ring: true });
+  }
+
+  function toggle(){
+    if (finished) return;
+    running = !running;
+    if (running && startAt === 0) startAt = performance.now();
+  }
+
+  btnStart.addEventListener("click", () => { if (!finished) { running = true; if (!startAt) startAt = performance.now(); } });
+  btnRestart.addEventListener("click", () => reset());
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === " ") { e.preventDefault(); toggle(); }
+  }, { passive:false });
+
+  // ---- タップ判定 ----
+  function getPointerPos(e){
+    const rect = canvas.getBoundingClientRect();
+    return { x: (e.clientX - rect.left), y: (e.clientY - rect.top) };
+  }
+
+  function tryHit(x,y){
+    for (let i=bubbles.length-1; i>=0; i--){
+      const b = bubbles[i];
+      const dx = x - b.x, dy = y - b.y;
+      if (dx*dx + dy*dy <= (b.r*b.r)){
+        bubbles.splice(i,1);
+
+        // ログ記録
+        const now = performance.now();
+        popLog.push({
+          t: startAt ? (now - startAt)/1000 : 0,
+          colorKey: b.colorKey,
+          x: b.x / Math.max(1,W),
+          y: b.y / Math.max(1,H),
+        });
+
+        combo += 1;
+        const base = 10;
+        const bonus = Math.floor(base * (1 + Math.min(8, combo)*0.25));
+        score += bonus;
+        makePop(b.x, b.y, b.color, b.r);
+
+        // ちょい時間回復（気持ちよさ）
+        timeLeft = clamp(timeLeft + 0.12, 0, 60);
+
+        if (score > best){
+          best = score;
+          localStorage.setItem(bestKey, String(best));
+        }
+
+        syncHUD();
+
+        // 10個割ったら結果へ
+        if (popLog.length >= targetPops){
+          finishAndShow();
+        }
+        return true;
+      }
+    }
+
+    combo = 0;
+    syncHUD();
+    return false;
+  }
+
+  canvas.addEventListener("pointerdown", (e) => {
+    canvas.setPointerCapture?.(e.pointerId);
+    if (!running && !finished) { running = true; if (!startAt) startAt = performance.now(); }
+    const p = getPointerPos(e);
+    tryHit(p.x, p.y);
+  });
+
+  // ---- 占いロジック（②） ----
+  const colorMeta = {
+    RED: { name:"紅", type:"火の気", base:"勢い・突破・決断", vibe:"背中を押す力が強い", quote:["迷ったら先に一歩。","遠慮より行動。"] },
+    BLU: { name:"青", type:"水の気", base:"冷静・観察・整理", vibe:"情報を整える力が強い", quote:["答えは静けさの中。","今は整える時。"] },
+    GRN: { name:"緑", type:"木の気", base:"調和・回復・育成", vibe:"安心を作る力が強い", quote:["焦らず育てる。","続けた人が勝つ。"] },
+    YEL: { name:"黄", type:"風の気", base:"好奇心・遊び・発見", vibe:"場を明るくする力が強い", quote:["面白い方へ。","軽やかに試す。"] },
+    PUR: { name:"紫", type:"星の気", base:"直感・美意識・ひらめき", vibe:"見えない流れを読む", quote:["直感はだいたい正しい。","浮かんだ案を拾う。"] },
+    PNK: { name:"桃", type:"花の気", base:"共感・魅力・関係性", vibe:"人をあたためる", quote:["言葉が運を運ぶ。","優しさは武器。"] },
+    CYN: { name:"碧", type:"空の気", base:"自由・刷新・開放", vibe:"枠を外すのが得意", quote:["固定観念を壊す。","広い方へ。"] },
+    LAV: { name:"霞", type:"月の気", base:"感受性・余韻・物語", vibe:"空気の機微に強い", quote:["余白に答えがある。","急がない選択も正解。"] },
+  };
+
+  function analyze(log){
+    // 色カウント
+    const cnt = {};
+    for (const p of log) cnt[p.colorKey] = (cnt[p.colorKey]||0) + 1;
+
+    // メイン色
+    let mainKey = "BLU";
+    let mainN = -1;
+    for (const k of Object.keys(cnt)){
+      if (cnt[k] > mainN){ mainN = cnt[k]; mainKey = k; }
+    }
+
+    // スピード（平均間隔）
+    const times = log.map(x => x.t).sort((a,b)=>a-b);
+    let avgGap = 0;
+    if (times.length >= 2){
+      let s = 0;
+      for (let i=1;i<times.length;i++) s += (times[i]-times[i-1]);
+      avgGap = s / (times.length - 1);
+    } else {
+      avgGap = 999;
+    }
+
+    // 迷い度（間隔のバラつき）
+    let varGap = 0;
+    if (times.length >= 3){
+      const gaps = [];
+      for (let i=1;i<times.length;i++) gaps.push(times[i]-times[i-1]);
+      const m = gaps.reduce((a,b)=>a+b,0)/gaps.length;
+      varGap = gaps.reduce((a,g)=>a+(g-m)*(g-m),0)/gaps.length;
+    }
+
+    // 行動パターン（端/中心傾向）
+    // x,yが0..1（中央ほど0.5）
+    const edgeScore = log.reduce((a,p)=>{
+      const dx = Math.abs(p.x - 0.5);
+      const dy = Math.abs(p.y - 0.5);
+      return a + (dx + dy);
+    },0) / Math.max(1,log.length);
+    // 0.0～1.0くらい：大きいほど端寄り
+
+    return { cnt, mainKey, avgGap, varGap, edgeScore };
+  }
+
+  // 文章（①）を生成
+  function buildFortune(log){
+    const a = analyze(log);
+    const meta = colorMeta[a.mainKey] || colorMeta.BLU;
+
+    // 状態（速さ）
+    let state = "";
+    let badge = "";
+    if (a.avgGap <= 0.55){
+      badge = "即断モード";
+      state = "今のあなたは反応が速い。チャンスに飛び乗れる反面、情報が追いつかないまま走りがち。今日は「小さく試す→良かったら伸ばす」が最強。";
+    } else if (a.avgGap <= 0.95){
+      badge = "安定モード";
+      state = "テンポが安定してる。焦りも迷いも少なく、現実に強い状態。今日決めたことは、そのまま積み上がる。";
+    } else {
+      badge = "熟考モード";
+      state = "慎重さが出てる。悪い兆候じゃなくて、いまは「見極め」が必要なタイミング。急いで決めるより、条件を整えるほど勝率が上がる。";
+    }
+
+    // 行動のクセ（端寄り）
+    let style = "";
+    if (a.edgeScore >= 0.62){
+      style = "端や外側を狙う傾向が強い。あなたは“安全圏”ではなく“余白”に答えを探す人。誰も見てない選択肢にチャンスが転がりやすい。";
+    } else if (a.edgeScore >= 0.48){
+      style = "全体を見てから手を出すタイプ。極端に偏らず、場の流れを読める。今日は「手堅い一手」を先に置くと運が伸びる。";
+    } else {
+      style = "中心から決める現実派。まず“今ある強み”を使うのが得意。遠回りせず最短で進める日。";
+    }
+
+    // タイプ文（色）
+    const typeText =
+      `【${meta.name}の${meta.type}タイプ】\n` +
+      `あなたの核は「${meta.base}」。${meta.vibe}。\n` +
+      `今日は“${meta.name}”が多かった分、直感がよく働く。`;
+
+    // 色の内訳（短く）
+    const topColors = Object.entries(a.cnt).sort((x,y)=>y[1]-x[1]).slice(0,3)
+      .map(([k,n]) => `${(colorMeta[k]?.name || k)}×${n}`).join(" / ");
+
+    // ひとこと（引用）
+    const q = meta.quote[Math.floor(Math.random()*meta.quote.length)];
+    const quote = `今日のひとこと：「${q}」`;
+
+    // 共有用
+    const share =
+`風船割り占い結果
+${meta.name}の${meta.type}タイプ（${badge}）
+色内訳：${topColors}
+ひとこと：${q}`;
+
+    return { badge, typeText, state, style, quote, share };
+  }
+
+  function finishAndShow(){
+    running = false;
+    finished = true;
+    const f = buildFortune(popLog);
+    showResult(f);
+  }
+
+  // ---- 結果表示 ----
+  function showResult(f){
+    rTitle.textContent = "あなたの今のタイプ";
+    rBadge.textContent = f.badge;
+    rType.textContent  = f.typeText;
+    rState.textContent = f.state;
+    rStyle.textContent = f.style;
+    rQuote.textContent = f.quote;
+
+    rSmall.textContent =
+      `割った回数：${popLog.length} / 平均テンポ：${calcTempo(popLog)} / SCORE：${score}\n` +
+      `※ 占いは「直感の選択」をもとにした遊びの診断だよ。気楽にどうぞ。`;
+
+    modal.classList.add("show");
+
+    // コピーボタン
+    btnCopy.onclick = async () => {
+      const text = f.share + `\n` + location.href;
+      try{
+        await navigator.clipboard.writeText(text);
+        btnCopy.textContent = "コピーした！";
+        setTimeout(()=>btnCopy.textContent="結果をコピー", 1200);
+      }catch{
+        // クリップボード不可環境向けフォールバック
+        prompt("コピーして使ってね👇", text);
+      }
+    };
+
+    btnAgain.onclick = () => reset();
+  }
+
+  function hideResult(){
+    modal.classList.remove("show");
+    btnCopy.textContent = "結果をコピー";
+  }
+
+  function calcTempo(log){
+    const times = log.map(x=>x.t).sort((a,b)=>a-b);
+    if (times.length < 2) return "—";
+    let s=0;
+    for (let i=1;i<times.length;i++) s += (times[i]-times[i-1]);
+    const avg = s/(times.length-1);
+    return `${avg.toFixed(2)}s/回`;
+  }
+
+  // ---- 更新 & 描画 ----
+  let last = performance.now();
+
+  function tick(now){
+    const dt = Math.min(0.033, (now-last)/1000);
+    last = now;
+
+    const rect = canvas.getBoundingClientRect();
+    W = rect.width; H = rect.height;
+
+    update(dt);
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+  function update(dt){
+    if (!running || finished) return;
+
+    timeLeft -= dt;
+    if (timeLeft <= 0){
+      timeLeft = 0;
+      $time.textContent = timeLeft.toFixed(1);
+      finishAndShow();
+      return;
+    }
+    $time.textContent = timeLeft.toFixed(1);
+
+    // 生成テンポ（後半少し増える）
+    const difficulty = 1 + (30 - timeLeft) / 30;
+    const interval = clamp(0.34 / difficulty, 0.14, 0.34);
+
+    spawnTimer += dt;
+    while (spawnTimer >= interval){
+      spawnTimer -= interval;
+      spawnBubble();
+      if (bubbles.length > 22) bubbles.shift();
+    }
+
+    // バブル更新
+    for (let i=bubbles.length-1; i>=0; i--){
+      const b = bubbles[i];
+      b.t += dt;
+
+      b.x += b.drift.x * dt;
+      b.y += b.drift.y * dt;
+
+      if (b.x - b.r < 8 || b.x + b.r > W - 8) b.drift.x *= -1;
+      if (b.y - b.r < 8 || b.y + b.r > H - 8) b.drift.y *= -1;
+
+      b.r *= (1 + dt * 0.18 * b.grow);
+
+      // 寿命切れでコンボ終了（悔しさ）
+      if (b.t >= b.life){
+        bubbles.splice(i,1);
+        combo = 0;
+        syncHUD();
+      }
+    }
+
+    // パーティクル
+    for (let i=pops.length-1; i>=0; i--){
+      const p = pops[i];
+      p.t += dt;
+      if (p.t >= p.life){ pops.splice(i,1); continue; }
+      if (!p.ring){
+        p.vy += 520 * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= (1 - dt*2.2);
+        p.vy *= (1 - dt*1.6);
+      } else {
+        p.r *= (1 + dt*2.0);
+      }
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // 星
+    ctx.globalAlpha = 0.22;
+    for (let i=0;i<80;i++){
+      const x = (i*97) % W;
+      const y = (i*173) % H;
+      ctx.fillStyle = "white";
+      ctx.fillRect(x,y,1,1);
+    }
+    ctx.globalAlpha = 1;
+
+    // バブル
+    for (const b of bubbles){
+      const life01 = clamp(1 - (b.t / b.life), 0, 1);
+
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r*1.08, 0, Math.PI*2);
+      ctx.fillStyle = "rgba(0,0,0,.25)";
+      ctx.fill();
+
+      const grad = ctx.createRadialGradient(b.x - b.r*0.35, b.y - b.r*0.35, b.r*0.2, b.x, b.y, b.r);
+      grad.addColorStop(0, "rgba(255,255,255,.75)");
+      grad.addColorStop(0.25, b.color + "CC");
+      grad.addColorStop(1, b.color + "55");
+
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      ctx.lineWidth = Math.max(2, b.r*b.ring);
+      ctx.strokeStyle = "rgba(255,255,255,.55)";
+      ctx.globalAlpha = 0.35 + 0.45*life01;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r*0.88, -Math.PI/2, -Math.PI/2 + Math.PI*2*life01);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(255,255,255,.35)";
+      ctx.stroke();
+    }
+
+    // パーティクル
+    for (const p of pops){
+      const a = 1 - (p.t / p.life);
+      if (p.ring){
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = hexToRgba(p.color, 0.55*a);
+        ctx.stroke();
+        continue;
+      }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = hexToRgba(p.color, 0.9*a);
+      ctx.fill();
+    }
+
+    if (!running && !finished && popLog.length === 0){
+      centerText("風船を割って占い開始", H*0.53, 18, "rgba(215,225,255,.92)");
+      centerText("10個割るか、30秒で結果が出る", H*0.61, 13, "rgba(215,225,255,.72)");
+    }
+  }
+
+  function centerText(text, y, size, color){
+    ctx.fillStyle = color;
+    ctx.font = `900 ${size}px system-ui, -apple-system, "Segoe UI", "Noto Sans JP", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, W/2, y);
+  }
+  function hexToRgba(hex, a){
+    const h = hex.replace("#","");
+    const r = parseInt(h.slice(0,2),16);
+    const g = parseInt(h.slice(2,4),16);
+    const b = parseInt(h.slice(4,6),16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  // 初期化
+  requestAnimationFrame(() => {
+    resize();
+    reset();
+    requestAnimationFrame(tick);
+  });
+})();
+</script>
+</body>
+</html>
